@@ -88,6 +88,14 @@ getHistory(1)
 - A dashboard view listing all registered products and their current status
 - Deployment to a live (mainnet or L2) network
 
+## Live deployment
+
+- **Live app:** https://suchismita52.github.io/supply-chain-tracker/index.html
+- **Deployed contract (Sepolia):** `0x4553c3415a258BCb2b3ac033a8c73c184F976dd5`
+- **View on Sepolia Etherscan:** https://sepolia.etherscan.io/address/0x4553c3415a258BCb2b3ac033a8c73c184F976dd5
+
+To try it yourself: open the live app link above, click **Connect Wallet**, paste in the contract address, and interact with it directly (make sure MetaMask is set to the Sepolia test network).
+
 ## Author
 
 Built as a final-year blockchain project demonstrating smart contract development, DApp architecture, and Ethereum testnet deployment.
