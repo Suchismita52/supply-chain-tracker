@@ -1,15 +1,21 @@
-# Blockchain-Based Supply Chain Tracker
+# Blockchain-Based Supply Chain Tracker (Role-Based)
 
-A decentralized application (DApp) that tracks a product's journey — from manufacturing to delivery — on the Ethereum blockchain. Every status change is permanently recorded and publicly verifiable, so no single party can alter or hide a product's history.
+A decentralized application (DApp) that tracks a product's journey through a supply chain — from manufacturing to final delivery — on the Ethereum blockchain. Access is role-based: only the correct party in the chain can perform each step, and every action is permanently recorded and publicly verifiable.
 
 ## Problem it solves
 
-Traditional supply chain tracking relies on centralized databases that individual companies control and can edit or delete records from. This makes it hard for customers, auditors, or partners to fully trust a product's reported history (origin, handling, ownership changes).
+Traditional supply chain systems rely on centralized databases controlled by individual companies, where records can be edited, hidden, or disputed. There is also usually no clear, enforced separation of who is allowed to do what at each stage.
 
-This project stores that history on a public blockchain instead, so:
-- Records are **immutable** — once written, an entry can never be changed or deleted.
-- Records are **transparent** — anyone can look up a product's full history.
-- Writes are **access-controlled** — only the contract owner (the account that deployed it) can register products or update their status.
+This project solves both problems using a smart contract:
+- **Immutability** — once a status is recorded, it can never be changed or deleted.
+- **Transparency** — anyone can look up a product's full history.
+- **Role-based access control** — the contract enforces who can do what:
+  - Only a **Manufacturer** can register a new product
+  - Only a **Distributor** can mark it as shipped
+  - Only a **Retailer** can mark it as delivered
+  - Only the **Admin** (contract deployer) can assign these roles to wallet addresses
+
+This mirrors how a real supply chain works — each party has a distinct responsibility, and the code enforces that boundary instead of relying on trust.
 
 ## Tech stack
 
@@ -20,30 +26,41 @@ This project stores that history on a public blockchain instead, so:
 | Development environment | Remix IDE |
 | Wallet / signing | MetaMask |
 | Frontend | React (via CDN), ethers.js |
+| Hosting | GitHub Pages |
 
-## How it works
+## Roles
 
-1. **Add a product** — The contract owner registers a product with a unique ID and name. Its status starts as `"Manufactured"` and its first history entry is recorded.
-2. **Update status** — As the product moves through the supply chain (e.g. `Shipped`, `Delivered`), the owner updates its status. Each update appends a new entry to the product's history — nothing is overwritten.
-3. **View history** — Anyone can query a product by ID and retrieve its complete, timestamped history: every status, when it happened, and which wallet address made the change.
+| Role | Can do |
+|---|---|
+| Admin | Assign roles to wallet addresses |
+| Manufacturer | Register new products |
+| Distributor | Mark a product as "Shipped" |
+| Retailer | Mark a product as "Delivered" |
+| Anyone (no role needed) | View any product's history |
 
 ## Smart contract functions
 
 | Function | Description | Who can call it |
 |---|---|---|
-| `addProduct(id, name)` | Registers a new product | Contract owner only |
-| `updateStatus(id, status)` | Adds a new status entry | Contract owner only |
-| `getHistory(id)` | Returns the full history array for a product | Anyone (read-only, free) |
-| `products(id)` | Returns a product's current state | Anyone (read-only, free) |
+| `assignRole(address, role)` | Assigns a role to a wallet address | Admin only |
+| `addProduct(id, name)` | Registers a new product with status "Manufactured" | Manufacturer only |
+| `markShipped(id)` | Updates status to "Shipped" | Distributor only |
+| `markDelivered(id)` | Updates status to "Delivered" | Retailer only |
+| `getHistory(id)` | Returns the full timestamped history of a product | Anyone (read-only, free) |
+| `getProduct(id)` | Returns a product's current state | Anyone (read-only, free) |
+| `getAllProductIds()` | Returns every registered product ID | Anyone (read-only, free) |
+| `getMyRole()` | Returns the caller's own assigned role | Anyone (read-only, free) |
+
+The contract also emits `RoleAssigned`, `ProductAdded`, and `StatusUpdated` events so external tools could listen for changes in real time instead of repeatedly polling the blockchain.
 
 ## Project structure
 
 ```
 supply-chain-tracker/
 ├── contracts/
-│   └── SupplyChain.sol      # Smart contract source
+│   └── SupplyChain.sol      # Role-based smart contract
 ├── frontend/
-│   └── index.html           # Web UI to interact with the deployed contract
+│   └── index.html           # React dashboard UI
 └── README.md
 ```
 
@@ -51,51 +68,69 @@ supply-chain-tracker/
 
 ### 1. Deploy the smart contract
 1. Open [Remix IDE](https://remix.ethereum.org).
-2. Create a new file and paste in `contracts/SupplyChain.sol`.
-3. Compile it (Solidity Compiler tab).
-4. Under **Deploy & Run Transactions**, set Environment to **Injected Provider / Browser Extension** and connect MetaMask.
-5. Switch MetaMask to the **Sepolia test network** and make sure the account has test ETH (available from a Sepolia faucet).
-6. Click **Deploy** and confirm the transaction in MetaMask.
-7. Copy the deployed contract address.
+2. Paste in `contracts/SupplyChain.sol` and compile it.
+3. Under **Deploy & Run Transactions**, connect MetaMask (Environment: Injected Provider / Browser Extension), set to the **Sepolia test network**, and deploy.
+4. The account that deploys becomes the **Admin**.
 
-### 2. Run the frontend
-1. Open `frontend/index.html` in your browser (double-click it — no install needed, React and ethers.js load from a CDN).
+### 2. Assign roles
+As Admin, call `assignRole(walletAddress, roleNumber)` for each participant:
+- `1` = Manufacturer
+- `2` = Distributor
+- `3` = Retailer
+
+You can assign your own wallet a role too, so you can test every step yourself using one account, or use different MetaMask accounts to simulate different real participants.
+
+### 3. Run the frontend
+1. Open `frontend/index.html` in a browser, or visit the live GitHub Pages link (see below).
 2. Click **Connect Wallet**.
 3. Paste in the deployed contract address.
-4. Use the form to add products, update their status, and view history.
+4. Use the **Dashboard** tab to see all products, **My Actions** to register/update products (based on your role), **Admin** to assign roles, and **Lookup History** to trace any product's full journey.
 
-## Example usage
+## Example flow
 
 ```
-addProduct(1, "Wireless Mouse")
-  → history: [{ status: "Manufactured", timestamp: ..., updatedBy: 0x566c...345f }]
+Admin assigns:
+  0xAAA... → Manufacturer
+  0xBBB... → Distributor
+  0xCCC... → Retailer
 
-updateStatus(1, "Shipped")
-  → history: [
-      { status: "Manufactured", ... },
-      { status: "Shipped", ... }
-    ]
+As Manufacturer (0xAAA):
+  addProduct(1, "Wireless Mouse")
+  → status: Manufactured
 
-getHistory(1)
-  → returns the full array above
+As Distributor (0xBBB):
+  markShipped(1)
+  → status: Shipped
+
+As Retailer (0xCCC):
+  markDelivered(1)
+  → status: Delivered
+
+getHistory(1) →
+  [
+    { status: "Manufactured", updatedBy: 0xAAA..., timestamp: ... },
+    { status: "Shipped",      updatedBy: 0xBBB..., timestamp: ... },
+    { status: "Delivered",    updatedBy: 0xCCC..., timestamp: ... }
+  ]
 ```
+
+## Why this design
+
+A single-owner system (where one wallet can do everything) is easy to build but doesn't reflect how supply chains actually work — different companies handle different stages, and none of them should be able to perform another's role. Enforcing this with `onlyRole` modifiers means the rules live in the contract itself, not in a policy document that could be ignored.
 
 ## Possible future improvements
 
-- Role-based access control (separate `Manufacturer`, `Distributor`, `Retailer` roles instead of a single owner)
-- Ownership transfer between wallets as a product changes hands
-- QR code generation per product ID for easy lookup at physical checkpoints
-- A dashboard view listing all registered products and their current status
-- Deployment to a live (mainnet or L2) network
+- Multiple manufacturers/distributors/retailers competing or collaborating on the same product
+- QR code generation per product ID for lookup at physical checkpoints
+- Time-based alerts if a product stays "Shipped" too long without being delivered
+- A public verification page for end customers to check authenticity before purchase
 
 ## Live deployment
 
-- **Live app:** https://suchismita52.github.io/supply-chain-tracker/index.html
-- **Deployed contract (Sepolia):** `0x4553c3415a258BCb2b3ac033a8c73c184F976dd5`
-- **View on Sepolia Etherscan:** https://sepolia.etherscan.io/address/0x4553c3415a258BCb2b3ac033a8c73c184F976dd5
-
-To try it yourself: open the live app link above, click **Connect Wallet**, paste in the contract address, and interact with it directly (make sure MetaMask is set to the Sepolia test network).
+- **Live app:** https://suchismita52.github.io/supply-chain-tracker/frontend/index.html
+- **Deployed contract (Sepolia):** `0x7a47A253e566Df381Ae4f563AD5283c97DE757e2`
+- **View on Sepolia Etherscan:** https://sepolia.etherscan.io/address/0x7a47A253e566Df381Ae4f563AD5283c97DE757e2
 
 ## Author
 
-Built as a final-year blockchain project demonstrating smart contract development, DApp architecture, and Ethereum testnet deployment.
+Built as a final-year blockchain project demonstrating smart contract development, role-based access control, and full-stack DApp architecture.
